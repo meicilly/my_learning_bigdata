@@ -1,0 +1,21 @@
+### 基本介绍
+##### 在大数据中zookeeper起到到的是监控、通知、选举的功能。
+### 基本概念
+
+#### 1.集群的角色
+###### 在zookeeper中引入了三种角色Leader、Follower、Observer三种角色。Leader是通过选举机制选举出来的，并为客户端提供了读和写的服务。Follower和Observer都只提供了读的服务。Observer的区别就是不参与Leader的选举过程，不参与写操作过半的的成功的策略。
+#### 2.会话(session)
+###### Session是指客户端会话。客户端连接是指客户端和服务端之间的一个TCP长连接，Zookeeper对外的服务端口默认是2181。通过建立连接客户端能够心跳检测与服务器保持有效的会话。
+#### 3.数据节点(Znode)
+###### zookeeper所有的数据存储在内存中，数据模型是一颗树。
+#### 4.版本
+###### Zookeeper都会维护一个叫作Stat的数据结构，Stat记录了这个ZNode的三个版本，分别是version(当前ZNode的版本)、cversion(当前ZNode子节点的版本)、aversion(当前ZNode的ACL版本)。
+#### 5.Watcher(事件监听器)
+###### Zookeeper允许用户在指定节点上注册一些Watcher,并且在一些特定事件触发的时候，zookeeper服务端会将事件通知到客户端。
+#### 6.ACL
+###### Zookeeper采用ACL策略来控制权限，其定义了五种权限:
+- CREATE:创建子节点的权限。
+- READ:获取节点数据和子节点列表的权限。
+- WRITE:更新节点数据的权限。
+- DELETE:删除子节点的权限。
+- ADMIN:设置节点ACL的权限。
