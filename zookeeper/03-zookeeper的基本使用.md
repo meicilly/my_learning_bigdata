@@ -40,4 +40,340 @@ create /zk-permanent 123
 set /zk-demo 222
 ```
 #### Zookeeper的api的使用
+###### 建立会话的操作
+```java
+import org.apache.zookeeper.WatchedEvent;
+import org.apache.zookeeper.Watcher;
+import org.apache.zookeeper.ZooKeeper;
 
+import java.io.IOException;
+import java.util.concurrent.CountDownLatch;
+
+public class CreateSession implements Watcher {
+    private static CountDownLatch countDownLatch = new CountDownLatch(1);
+    public static void main(String[] args) throws IOException, InterruptedException {
+        /*
+            客户端可以通过创建⼀个zk实例来连接zk服务器
+            new Zookeeper(connectString,sesssionTimeOut,Wather)
+            connectString: 连接地址：IP：端⼝
+            sesssionTimeOut：会话超时时间：单位毫秒
+            Wather：监听器(当特定事件触发监听时，zk会通过watcher通知到客户端)
+        */
+        ZooKeeper zooKeeper = new ZooKeeper("192.168.233.17:2181", 5000, new CreateSession());
+        // 获取连接zookeeper状态
+        System.out.println(zooKeeper.getState());
+        // 计数工具类：CountDownLatch:不让main方法结束，让线程等待
+        countDownLatch.await();
+        System.out.println("客户端会话建立了");
+    }
+
+    /*
+    * 回调方法：处理来自服务器端的watcher通知
+    * */
+    @Override
+    public void process(WatchedEvent watchedEvent) {
+        // SyncConnected 表示会话创建成功
+        if(watchedEvent.getState()== Event.KeeperState.SyncConnected){
+            // 解除主程序在CountDownLatch上的等待阻塞
+            System.out.println("countDownLatch方法执行了");
+            countDownLatch.countDown();
+        }
+    }
+}
+```
+
+###### 创建节点的操作
+```java
+import org.apache.zookeeper.*;
+import java.io.IOException;
+import java.util.concurrent.CountDownLatch;
+public class CreateNode implements Watcher{
+    private static CountDownLatch countDownLatch = new CountDownLatch(1);
+    private static ZooKeeper zooKeeper;
+    public static void main(String[] args) throws IOException, InterruptedException {
+        /*
+            客户端可以通过创建⼀个zk实例来连接zk服务器
+            new Zookeeper(connectString,sesssionTimeOut,Wather)
+            connectString: 连接地址：IP：端⼝
+            sesssionTimeOut：会话超时时间：单位毫秒
+            Wather：监听器(当特定事件触发监听时，zk会通过watcher通知到客户端)
+        */
+        zooKeeper = new ZooKeeper("192.168.233.17:2181,192.168.233.16:2181,192.168.233.18:2181", 5000, new CreateNode());
+        // 获取连接zookeeper状态
+        System.out.println(zooKeeper.getState());
+        // 计数工具类：CountDownLatch:不让main方法结束，让线程等待
+        //countDownLatch.await();
+        Thread.sleep(Integer.MAX_VALUE);
+    }
+
+    /*
+     * 回调方法：处理来自服务器端的watcher通知
+     * */
+    @Override
+    public void process(WatchedEvent watchedEvent) {
+        // SyncConnected 表示会话创建成功
+        if(watchedEvent.getState()== Event.KeeperState.SyncConnected){
+            // 解除主程序在CountDownLatch上的等待阻塞
+            System.out.println("countDownLatch方法执行了");
+            //countDownLatch.countDown();
+            // 创建节点 同步的方式创建节点
+            try {
+                createNoteSync();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            } catch (KeeperException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+    /*
+     * 创建节点的方法
+     * */
+    public void createNoteSync() throws InterruptedException, KeeperException {
+        /**
+         * path ：节点创建的路径
+         * data[] ：节点创建要保存的数据，是个byte类型的
+         * acl ：节点创建的权限信息(4种类型)
+         * ANYONE_ID_UNSAFE : 表示任何⼈
+         * AUTH_IDS ：此ID仅可⽤于设置ACL。它将被客户机验证的ID替
+         换。
+         * OPEN_ACL_UNSAFE ：这是⼀个完全开放的ACL(常⽤)-->
+         world:anyone
+         * CREATOR_ALL_ACL ：此ACL授予创建者身份验证ID的所有权限
+         * createMode ：创建节点的类型(4种类型)
+         * PERSISTENT：持久节点
+         * PERSISTENT_SEQUENTIAL：持久顺序节点
+         * EPHEMERAL：临时节点
+         * EPHEMERAL_SEQUENTIAL：临时顺序节点
+         String node = zookeeper.create(path,data,acl,createMode);
+         */
+        System.out.println("创建节点");
+        // 持久节点
+        String note_persistent = zooKeeper.create("/meicilly-persistent", "持久节点内容".getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+        // 创建临时节点
+        String note_ephemeral = zooKeeper.create("/meicilly-ephemeral", "临时节点".getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL);
+        // 持久顺序节点
+        String note_sequential = zooKeeper.create("/meicilly-sequential", "持久顺序节点".getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT_SEQUENTIAL);
+        System.out.println("创建的持久节点" + note_persistent);
+        System.out.println("创建临时节点" + note_ephemeral);
+        System.out.println("持久顺序节点" + note_sequential);
+    }
+}
+```
+###### 获取节点的数据
+```
+import org.apache.zookeeper.*;
+import java.io.IOException;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+
+public class GetNoteData implements Watcher{
+    private static CountDownLatch countDownLatch = new CountDownLatch(1);
+    private static ZooKeeper zooKeeper;
+    public static void main(String[] args) throws IOException, InterruptedException {
+        /*
+            客户端可以通过创建⼀个zk实例来连接zk服务器
+            new Zookeeper(connectString,sesssionTimeOut,Wather)
+            connectString: 连接地址：IP：端⼝
+            sesssionTimeOut：会话超时时间：单位毫秒
+            Wather：监听器(当特定事件触发监听时，zk会通过watcher通知到客户端)
+        */
+        zooKeeper = new ZooKeeper("192.168.233.17:2181,192.168.233.16:2181,192.168.233.18:2181", 5000, new GetNoteData());
+        // 获取连接zookeeper状态
+        System.out.println(zooKeeper.getState());
+        // 计数工具类：CountDownLatch:不让main方法结束，让线程等待
+        //countDownLatch.await();
+        Thread.sleep(Integer.MAX_VALUE);
+    }
+
+    /*
+     * 回调方法：处理来自服务器端的watcher通知
+     * */
+    @Override
+    public void process(WatchedEvent watchedEvent) {
+        // 当子节点列表发生改变时，服务器端会发生noteChildrenChanged事件通知 要重新获取子节点列表 需要反复注册监听
+        if(watchedEvent.getType() == Event.EventType.NodeChildrenChanged){
+            List<String> children = null;
+            try {
+                children = zooKeeper.getChildren("/meicilly-persistent", true);
+            } catch (KeeperException e) {
+                e.printStackTrace();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            System.out.println(children);
+        }
+        // SyncConnected 表示会话创建成功
+        if(watchedEvent.getState()== Watcher.Event.KeeperState.SyncConnected){
+            // 解除主程序在CountDownLatch上的等待阻塞
+            System.out.println("countDownLatch方法执行了");
+            //countDownLatch.countDown();
+            // 获取节点的方法
+            try {
+                getNoteData();
+                // 获取节点的子节点列表
+                //getChildrens();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            } catch (KeeperException e) {
+                e.printStackTrace();
+            }
+
+        }
+    }
+
+    private void getNoteData() throws InterruptedException, KeeperException {
+        /**
+         * path : 获取数据的路径
+         * watch : 是否开启监听
+         * stat : 节点状态信息
+         * null: 表示获取最新版本的数据
+         * zk.getData(path, watch, stat);
+         */
+        byte[] data = zooKeeper.getData("/meicilly-persistent", false, null);
+        System.out.println(new String(data));
+    }
+    /*
+    * 获取某个节点的子节点列表的方法
+    * */
+    public static void getChildrens() throws InterruptedException, KeeperException {
+        /*
+            path:路径
+            watch:是否要启动监听，当⼦节点列表发⽣变化，会触发监听
+            zooKeeper.getChildren(path, watch);
+        */
+        List<String> children = zooKeeper.getChildren("/meicilly-persistent", true);
+        System.out.println(children);
+    }
+
+}
+```
+###### 更新某个节点的数据
+```
+import org.apache.zookeeper.KeeperException;
+import org.apache.zookeeper.WatchedEvent;
+import org.apache.zookeeper.Watcher;
+import org.apache.zookeeper.ZooKeeper;
+import org.apache.zookeeper.data.Stat;
+import java.io.IOException;
+import java.util.concurrent.CountDownLatch;
+
+public class UpdateNoteData implements Watcher{
+    private static CountDownLatch countDownLatch = new CountDownLatch(1);
+    private static ZooKeeper zooKeeper;
+    public static void main(String[] args) throws IOException, InterruptedException {
+        /*
+            客户端可以通过创建⼀个zk实例来连接zk服务器
+            new Zookeeper(connectString,sesssionTimeOut,Wather)
+            connectString: 连接地址：IP：端⼝
+            sesssionTimeOut：会话超时时间：单位毫秒
+            Wather：监听器(当特定事件触发监听时，zk会通过watcher通知到客户端)
+        */
+        zooKeeper = new ZooKeeper("192.168.233.17:2181,192.168.233.16:2181,192.168.233.18:2181", 5000, new UpdateNoteData());
+        // 获取连接zookeeper状态
+        System.out.println(zooKeeper.getState());
+        // 计数工具类：CountDownLatch:不让main方法结束，让线程等待
+        //countDownLatch.await();
+        Thread.sleep(Integer.MAX_VALUE);
+    }
+
+    /*
+     * 回调方法：处理来自服务器端的watcher通知
+     * */
+    @Override
+    public void process(WatchedEvent watchedEvent) {
+        // SyncConnected 表示会话创建成功
+        if(watchedEvent.getState()== Event.KeeperState.SyncConnected){
+            // 解除主程序在CountDownLatch上的等待阻塞
+            System.out.println("countDownLatch方法执行了");
+            //countDownLatch.countDown();
+            //更新数据节点的方法
+            try {
+                updateNoteSync();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            } catch (KeeperException e) {
+                e.printStackTrace();
+            }
+
+
+        }
+    }
+    // 更新数据节点内容的方法
+    private void updateNoteSync() throws InterruptedException, KeeperException {
+        /*
+            path:路径
+            data:要修改的内容 byte[]
+            version:为-1，表示对最新版本的数据进⾏修改
+            zooKeeper.setData(path, data,version);
+        */
+        byte[] data1 = zooKeeper.getData("/meicilly-persistent", false, null);
+        System.out.println("修改前的值" + new String(data1));
+        // 修改meicilly-persistent的数据
+        Stat stat = zooKeeper.setData("/meicilly-persistent", "客户端修改了节点数".getBytes(), -1);
+        byte[] data2 = zooKeeper.getData("/meicilly-persistent", false, null);
+        System.out.println("修改后的值" + new String(data2));
+    }
+}
+```
+###### 删除某个节点的数据
+```
+import org.apache.zookeeper.*;
+import org.apache.zookeeper.data.Stat;
+import java.io.IOException;
+import java.util.concurrent.CountDownLatch;
+public class DeleteNode implements Watcher{
+    private static CountDownLatch countDownLatch = new CountDownLatch(1);
+    private static ZooKeeper zooKeeper;
+    public static void main(String[] args) throws IOException, InterruptedException {
+        /*
+            客户端可以通过创建⼀个zk实例来连接zk服务器
+            new Zookeeper(connectString,sesssionTimeOut,Wather)
+            connectString: 连接地址：IP：端⼝
+            sesssionTimeOut：会话超时时间：单位毫秒
+            Wather：监听器(当特定事件触发监听时，zk会通过watcher通知到客户端)
+        */
+        zooKeeper = new ZooKeeper("192.168.233.17:2181,192.168.233.16:2181,192.168.233.18:2181", 5000, new DeleteNode());
+        // 获取连接zookeeper状态
+        System.out.println(zooKeeper.getState());
+        // 计数工具类：CountDownLatch:不让main方法结束，让线程等待
+        //countDownLatch.await();
+        Thread.sleep(Integer.MAX_VALUE);
+    }
+
+    /*
+     * 回调方法：处理来自服务器端的watcher通知
+     * */
+    @Override
+    public void process(WatchedEvent watchedEvent) {
+        // SyncConnected 表示会话创建成功
+        if(watchedEvent.getState()== Event.KeeperState.SyncConnected){
+            // 解除主程序在CountDownLatch上的等待阻塞
+            System.out.println("countDownLatch方法执行了");
+            //countDownLatch.countDown();
+            // 删除节点
+            try {
+                deleteNoteSync();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            } catch (KeeperException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+    /*
+    * 删除节点的方法
+    * */
+    private void deleteNoteSync() throws InterruptedException, KeeperException {
+        /*
+            zooKeeper.exists(path,watch) :判断节点是否存在
+            zookeeper.delete(path,version) : 删除节点
+         */
+        Stat stat = zooKeeper.exists("/meicilly-persistent/c1", false);
+        System.out.println(stat == null ? "该节点不存在":"该节点存在");
+        if(stat != null){
+            zooKeeper.delete("/meicilly-persistent/c1",-1);
+        }
+    }
+}
+```
